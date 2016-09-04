@@ -45,3 +45,6 @@ Starshatter/Release/key.cfg
 
 #VS files
 *.sdf
+Starshatter/Release/video.cfg
+Starshatter/Release/player.cfg
+Starshatter/Release/mod.cfg
