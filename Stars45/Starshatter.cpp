@@ -409,9 +409,9 @@ Starshatter::Init(HINSTANCE hi, HINSTANCE hpi, LPSTR cmdline, int nCmdShow)
         Print("   FILE SYSTEM ENABLED\n");
     }
 
-    if (strstr(cmdline, "-nosplash")) {
+    //if (strstr(cmdline, "-nosplash")) {
         no_splash = true;
-    }
+    //}
 
     if (loader)
     loader->UseFileSystem(use_file_system);
