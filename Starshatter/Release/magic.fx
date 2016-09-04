@@ -123,9 +123,36 @@ struct VS_OUTPUT_SIMPLE
    float2 tex0          : TEXCOORD0;
 };
 
+//Store info to compute specular per-pixel even without spec map
+struct VS_OUTPUT_PERPIX
+{
+	//Because apparently you can't send positions to pixel shaders.
+	float2 tex0			: TEXCOORD0;
+	float4 modelpos		: TEXCOORD1;
+	float3 modelnormal	: TEXCOORD2;
+	float4 position		: POSITION;
+};
+
+
+
+
 /**************************************/
 /***** VERTEX SHADER ******************/
 /**************************************/
+
+VS_OUTPUT_PERPIX
+vtxPerPix(
+			float4 position : POSITION, //Because apparently you can't send positions to pixel shaders. -_-,
+			float3 normal	: NORMAL,
+			float2 tex0		: TEXCOORD)
+{
+	VS_OUTPUT_PERPIX Out;
+	Out.modelpos = position;
+	Out.modelnormal = normal;
+	Out.tex0 = tex0;
+	Out.position = mul(position, wvp);
+	return Out;
+}
 
 VS_OUTPUT_SIMPLE
 vtxSimple(
@@ -200,7 +227,7 @@ vtxNormalNoPS(
           test.y  = N_dot_H > 0;
 
    if (all(test)) {
-      Out.specular = Ks * pow(abs(N_dot_H), Ns);
+      Out.specular = Ks * pow(N_dot_H, Ns);
    }
    else {
       Out.specular = black;
@@ -278,6 +305,43 @@ vtxAtmosphere(
 /**************************************/
 /********* PIXEL SHADER ***************/
 /**************************************/
+
+float4 pixDiffusePhong(
+		VS_OUTPUT_PERPIX In,
+		uniform sampler2D diffTex
+	)	: Color
+{
+	//float4 modelpos		: POSITON;
+	//float3 modelnormal	: NORMAL;
+	//float2 tex0			: TEXCOORD;
+	float4 diffuse = tex2D(diffTex, In.tex0);
+	float3 N = normalize(In.modelnormal);
+	float3 V = normalize(eyeObj - In.modelpos.xyz);
+	float4 modelLightPos = mul(light1Pos, worldInv);
+	float3 L = normalize(modelLightPos.xyz - In.modelpos.xyz);
+	float3 H = normalize(V + L);
+	float4 coeff = lit(dot(N,L), dot(N,H), Ns);
+
+	return light1Color * (Kd*diffuse*coeff.y + Ks*coeff.z);
+}
+
+float4 pixPhong(
+	VS_OUTPUT_PERPIX In
+	) : Color
+{
+	//float4 modelpos		: POSITON;
+	//float3 modelnormal	: NORMAL;
+	//float2 tex0			: TEXCOORD;
+	float3 N = normalize(In.modelnormal);
+	float3 V = normalize(eyeObj - In.modelpos.xyz);
+	float4 modelLightPos = mul(light1Pos, worldInv);
+	float3 L = normalize(modelLightPos.xyz - In.modelpos.xyz);
+	float3 H = normalize(V + L);
+	float4 coeff = lit(dot(N,L), dot(N,H), Ns);
+
+	return light1Color * (Kd*coeff.y + Ks*coeff.z);
+}
+
 
 float4 pixDiffuse(
       VS_OUTPUT_SIMPLE  In,
@@ -398,8 +462,14 @@ technique SimplePix
    pass P0 
    {
       FogEnable         = false;
-      VertexShader      = compile vs_1_1 vtxSimple();
-      PixelShader       = compile ps_2_0 pixDiffuse(diffuseSampler);
+
+#ifndef I_FUCKED_UP
+	  VertexShader = compile vs_1_1 vtxPerPix();
+	  PixelShader = compile ps_2_0 pixDiffusePhong(diffuseSampler);
+#else
+	  VertexShader = compile vs_1_1 vtxSimple();
+	  PixelShader = compile ps_2_0 pixDiffuse(diffuseSampler);
+#endif
    }
 }
 
@@ -539,6 +609,14 @@ technique BumpMap
 
 technique SimpleMaterial
 {
+#ifndef I_FUCKED_UP
+	pass P0
+	{
+		FogEnable = false;
+		VertexShader = compile vs_1_1 vtxPerPix();
+		PixelShader = compile ps_2_0 pixPhong();
+	}
+#else
    pass P0
    {
       //FogEnable         = false;
@@ -561,10 +639,19 @@ technique SimpleMaterial
       VertexShader      = NULL;
       PixelShader       = NULL;
    }
+#endif
 }
 
 technique SimpleTexture
 {
+#ifndef I_FUCKED_UP
+	pass P0
+	{
+		FogEnable = false;
+		VertexShader = compile vs_1_1 vtxPerPix();
+		PixelShader = compile ps_2_0 pixDiffusePhong(diffuseSampler);
+	}
+#else
    pass P0
    {
       //FogEnable         = false;
@@ -599,6 +686,7 @@ technique SimpleTexture
       VertexShader      = NULL;
       PixelShader       = NULL;
    }
+#endif
 }
 
 
